@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="grid">
+  <article class="card">
+    <h2>Registrar alumno</h2>
+    <form method="post" class="form">
+      <label>Nombre completo</label>
+      <input name="full_name" required>
+
+      <label>Codigo de alumno</label>
+      <input name="student_code" required>
+
+      <label>Grupo / Salon</label>
+      <input name="classroom" required placeholder="3A, 2B, etc.">
+
+      <button class="btn" type="submit">Guardar</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <h2>Listado</h2>
+    {% if students %}
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Codigo</th>
+            <th>Grupo</th>
+            <th>QR</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in students %}
+          <tr>
+            <td>{{ s.full_name }}</td>
+            <td>{{ s.student_code }}</td>
+            <td>{{ s.classroom }}</td>
+            <td><a href="{{ url_for('student_qr', student_id=s.id) }}">Ver QR</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No hay alumnos registrados.</p>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

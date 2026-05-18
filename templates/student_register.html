@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="grid single-panel">
+  <article class="card">
+    <h2>Registro de alumno</h2>
+    <p>Crea tu cuenta para entrar a tu panel y mostrar tu codigo QR.</p>
+
+    {% if error %}
+      <div class="result"><div class="error">{{ error }}</div></div>
+    {% endif %}
+
+    <form method="post" class="form">
+      <label>Nombre completo</label>
+      <input name="full_name" required>
+
+      <label>Codigo de alumno</label>
+      <input name="student_code" required placeholder="ABC123">
+
+      <label>Grupo / Salon</label>
+      <input name="classroom" required placeholder="3A, 2B, etc.">
+
+      <label>Contrasena</label>
+      <input type="password" name="password" required>
+
+      <label>Confirmar contrasena</label>
+      <input type="password" name="confirm_password" required>
+
+      <button class="btn" type="submit">Registrar y entrar</button>
+    </form>
+
+    <p>Si ya tienes cuenta, entra con tu codigo y contrasena.</p>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('student_login') }}">Iniciar sesion</a>
+      <a class="btn" href="{{ url_for('scan') }}">Ir al escaneo</a>
+    </div>
+  </article>
+</section>
+{% endblock %}

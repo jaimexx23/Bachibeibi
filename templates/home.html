@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Sistema de registro de asistencia</h2>
+  <p>Flujo recomendado:</p>
+  <ol>
+    <li>Registrar alumnos con su codigo institucional.</li>
+    <li>Generar e imprimir QR por alumno.</li>
+    <li>Escanear en entrada de clase.</li>
+    <li>Consultar asistencias del dia.</li>
+  </ol>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('student_login') }}">Acceso alumnos</a>
+    <a class="btn" href="{{ url_for('student_register') }}">Registrar alumno</a>
+    <a class="btn" href="{{ url_for('students') }}">Registrar alumnos</a>
+    <a class="btn" href="{{ url_for('scan') }}">Iniciar escaneo</a>
+  </div>
+</section>
+{% endblock %}

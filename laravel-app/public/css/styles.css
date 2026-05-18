@@ -1,0 +1,15 @@
+/* Copied from original Flask app styles.css */
+/* (shortened for brevity) */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
+:root { --bg: #f4f8ff; --bg-soft: #edf3ff; --ink: #0f172a; --ink-muted: #475569; --brand: #0f766e; --brand-deep: #115e59; --accent: #f59e0b; --surface: #ffffffcc; --line: #d5deee; --shadow: 0 18px 44px rgba(15, 23, 42, 0.12); --radius-xl: 22px; --radius-lg: 14px; }
+* { box-sizing: border-box; }
+body { margin:0; min-height:100%; font-family: 'Outfit', 'Trebuchet MS', sans-serif; background: linear-gradient(140deg, var(--bg) 0%, var(--bg-soft) 100%); color:var(--ink); }
+.topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:linear-gradient(92deg,#0f172aeb 0%,#0f766ee3 52%,#0ea5e9db 100%); color:#f8fafc; border-radius:18px; margin:14px auto 0; width:min(1180px,calc(100% - 20px)); }
+.main-nav a{ color:#f8fafc; text-decoration:none; padding:8px 13px; border-radius:999px; }
+.container{ width:min(1180px,calc(100% - 20px)); margin:18px auto 34px; }
+.card{ border-radius:var(--radius-xl); padding:clamp(18px,2.5vw,28px); background:#ffffffdd; border:1px solid #ffffffb3; box-shadow:var(--shadow); }
+.qr{ width:min(320px,100%); margin:12px 0; border-radius:14px; border:1px solid #d9e5ff; }
+#reader { width:100%; max-width:560px; margin:0 auto 16px; border-radius:18px; overflow:hidden; }
+.result{ margin-top:14px; }
+.result .ok{ color:#064e3b; border:1px solid #10b981; background:#ecfdf5; }
+.result .error{ color:#7f1d1d; border:1px solid #ef4444; background:#fef2f2; }

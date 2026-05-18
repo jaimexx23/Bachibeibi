@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Escaneo de QR</h2>
+  <p>Permite acceso a camara y apunta al QR del alumno.</p>
+
+  <div id="reader"></div>
+
+  <div class="manual-box">
+    <label>Registro manual (si falla camara)</label>
+    <div class="inline-form">
+      <input id="manualCode" placeholder="Codigo de alumno">
+      <button class="btn" onclick="manualCheckin()">Registrar</button>
+    </div>
+  </div>
+
+  <div id="result" class="result"></div>
+</section>
+
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="{{ url_for('static', filename='scan.js') }}"></script>
+{% endblock %}

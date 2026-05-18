@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Asistencia por fecha</h2>
+  <form method="get" class="inline-form">
+    <input type="date" name="date" value="{{ selected_date }}">
+    <button class="btn" type="submit">Consultar</button>
+  </form>
+
+  {% if records %}
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Codigo</th>
+          <th>Grupo</th>
+          <th>Hora</th>
+          <th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in records %}
+        <tr>
+          <td>{{ r.full_name }}</td>
+          <td>{{ r.student_code }}</td>
+          <td>{{ r.classroom }}</td>
+          <td>{{ r.attendance_time }}</td>
+          <td>{{ r.attendance_date }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No hay asistencias registradas para esta fecha.</p>
+  {% endif %}
+</section>
+{% endblock %}
