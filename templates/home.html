@@ -1,19 +1,24 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-  <h2>Sistema de registro de asistencia</h2>
-  <p>Flujo recomendado:</p>
-  <ol>
-    <li>Registrar alumnos con su codigo institucional.</li>
-    <li>Generar e imprimir QR por alumno.</li>
-    <li>Escanear en entrada de clase.</li>
-    <li>Consultar asistencias del dia.</li>
-  </ol>
-  <div class="actions">
-    <a class="btn" href="{{ url_for('student_login') }}">Acceso alumnos</a>
-    <a class="btn" href="{{ url_for('student_register') }}">Registrar alumno</a>
-    <a class="btn" href="{{ url_for('students') }}">Registrar alumnos</a>
-    <a class="btn" href="{{ url_for('scan') }}">Iniciar escaneo</a>
-  </div>
+<section class="grid single-panel">
+  <article class="card">
+    <h2>Iniciar sesión</h2>
+    <p>Ingresa tu usuario y contraseña. El sistema detecta automáticamente si eres admin o alumno.</p>
+    <p class="muted">Si eres alumno y aún no tienes cuenta, puedes registrarte primero.</p>
+
+    <form method="post" action="{{ url_for('menu') }}" class="form">
+      <label>Usuario</label>
+      <input name="username" required>
+
+      <label>Contraseña</label>
+      <input type="password" name="password" required>
+
+      <button class="btn" type="submit">Entrar</button>
+    </form>
+
+    <div class="actions">
+      <a class="btn" href="{{ url_for('student_register') }}">Registrarse</a>
+    </div>
+  </article>
 </section>
 {% endblock %}

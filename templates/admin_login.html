@@ -2,9 +2,9 @@
 {% block content %}
 <section class="grid single-panel">
   <article class="card">
-    <h2>Iniciar sesión</h2>
-    <p>Ingresa tu usuario y contraseña. El sistema detecta automáticamente si eres admin o alumno.</p>
-    <p class="muted">Admin usa su usuario configurado; alumno usa su código de alumno.</p>
+    <h2>Acceso</h2>
+    <p>Usa esta pantalla única para entrar como admin o como alumno.</p>
+    <p class="muted">Admin y alumno se distinguen por el valor guardado en la base de datos.</p>
 
     {% if error %}
       <div class="result"><div class="error">{{ error }}</div></div>
@@ -20,9 +20,8 @@
       <button class="btn" type="submit">Entrar</button>
     </form>
 
-    <p>Si no tienes cuenta, puedes registrarte como alumno.</p>
     <div class="actions">
-      <a class="btn" href="{{ url_for('student_register') }}">Crear cuenta</a>
+      <a class="btn" href="{{ url_for('student_register') }}">Crear cuenta de alumno</a>
       <a class="btn" href="{{ url_for('menu') }}">Volver al inicio</a>
     </div>
   </article>

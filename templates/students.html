@@ -2,16 +2,17 @@
 {% block content %}
 <section class="grid">
   <article class="card">
-    <h2>Registrar alumno</h2>
+    <h2>Registrarse</h2>
+    <p>La contraseña por defecto para nuevos alumnos es: <strong>{{ default_student_password }}</strong></p>
     <form method="post" class="form">
       <label>Nombre completo</label>
       <input name="full_name" required>
 
-      <label>Codigo de alumno</label>
+      <label>Numero de cuenta</label>
       <input name="student_code" required>
 
-      <label>Grupo / Salon</label>
-      <input name="classroom" required placeholder="3A, 2B, etc.">
+      <label>Grupo y turno</label>
+      <input name="classroom" required>
 
       <button class="btn" type="submit">Guardar</button>
     </form>
@@ -26,7 +27,9 @@
             <th>Nombre</th>
             <th>Codigo</th>
             <th>Grupo</th>
+            <th>Rol</th>
             <th>QR</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -35,7 +38,13 @@
             <td>{{ s.full_name }}</td>
             <td>{{ s.student_code }}</td>
             <td>{{ s.classroom }}</td>
+            <td>{{ s.role }}</td>
             <td><a href="{{ url_for('student_qr', student_id=s.id) }}">Ver QR</a></td>
+            <td>
+              <form method="post" action="{{ url_for('delete_student', student_id=s.id) }}" style="display:inline">
+                <button class="btn btn-danger" type="submit" onclick="return confirm('¿Eliminar alumno?')">Eliminar</button>
+              </form>
+            </td>
           </tr>
         {% endfor %}
         </tbody>
