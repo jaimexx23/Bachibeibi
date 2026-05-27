@@ -10,16 +10,20 @@ from datetime import datetime
 
 import qrcode
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_PATH = os.path.join(BASE_DIR, "attendance.db")
+PHOTO_UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads", "students")
+ALLOWED_PHOTO_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 DEFAULT_ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 DEFAULT_STUDENT_PASSWORD = os.environ.get("DEFAULT_STUDENT_PASSWORD", "alumno123")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+app.config["PHOTO_UPLOAD_FOLDER"] = PHOTO_UPLOAD_FOLDER
 
 
 # ---------- Database helpers ----------
@@ -91,6 +95,8 @@ def init_db() -> None:
         cur.execute("ALTER TABLE students ADD COLUMN role TEXT NOT NULL DEFAULT 'student'")
     if "default_password" not in student_columns:
         cur.execute("ALTER TABLE students ADD COLUMN default_password INTEGER NOT NULL DEFAULT 0")
+    if "photo_filename" not in student_columns:
+        cur.execute("ALTER TABLE students ADD COLUMN photo_filename TEXT")
 
     cur.execute("UPDATE students SET role = 'student' WHERE role IS NULL OR TRIM(role) = ''")
     cur.execute("UPDATE students SET default_password = 0 WHERE default_password IS NULL")
@@ -105,6 +111,36 @@ def init_db() -> None:
         )
         """
     )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS scanners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+    # Ensure a default scanner account exists. Use env vars if provided, otherwise create a local default.
+    DEFAULT_SCANNER_USERNAME = os.environ.get("SCANNER_USERNAME", "scanner")
+    DEFAULT_SCANNER_PASSWORD = os.environ.get("SCANNER_PASSWORD", "scanner123")
+    cur.execute("SELECT id, password_hash FROM scanners WHERE username = ?", (DEFAULT_SCANNER_USERNAME,))
+    scanner_row = cur.fetchone()
+    if scanner_row is None:
+        cur.execute(
+            """
+            INSERT INTO scanners (username, password_hash, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (DEFAULT_SCANNER_USERNAME, generate_password_hash(DEFAULT_SCANNER_PASSWORD), datetime.now().isoformat()),
+        )
+    elif not check_password_hash(scanner_row["password_hash"], DEFAULT_SCANNER_PASSWORD):
+        cur.execute(
+            "UPDATE scanners SET password_hash = ? WHERE id = ?",
+            (generate_password_hash(DEFAULT_SCANNER_PASSWORD), scanner_row["id"]),
+        )
 
     cur.execute("SELECT id, password_hash FROM admins WHERE username = ?", (DEFAULT_ADMIN_USERNAME,))
     admin_row = cur.fetchone()
@@ -162,6 +198,10 @@ def make_qr_base64(payload: str) -> str:
     return encoded
 
 
+def allowed_photo_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_PHOTO_EXTENSIONS
+
+
 def student_login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -207,6 +247,40 @@ def get_logged_admin():
     return admin
 
 
+def get_logged_scanner():
+    scanner_id = session.get("scanner_id")
+    if not scanner_id:
+        return None
+
+    conn = get_db_connection()
+    scanner = conn.execute("SELECT id, username FROM scanners WHERE id = ?", (scanner_id,)).fetchone()
+    conn.close()
+    return scanner
+
+
+def scanner_login_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if session.get("role") != "scanner" or "scanner_id" not in session:
+            return redirect(url_for("scanner_login"))
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
+def admin_or_scanner_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        role = session.get("role")
+        if role == "admin" and "admin_id" in session:
+            return view(*args, **kwargs)
+        if role == "scanner" and "scanner_id" in session:
+            return view(*args, **kwargs)
+        return redirect(url_for("menu"))
+
+    return wrapped_view
+
+
 def extract_student_code(raw_value: str) -> str:
     """Extracts a student code from plain text, prefixed text, or URL payloads."""
     text = str(raw_value or "").strip()
@@ -240,6 +314,43 @@ def extract_student_code(raw_value: str) -> str:
     return token.group(0).strip().upper() if token else ""
 
 
+def split_classroom_section(classroom: str) -> tuple[str, str]:
+    """Split a classroom label into group and shift when possible."""
+    text = str(classroom or "").strip().upper()
+    if not text:
+        return "", ""
+
+    known_shifts = {
+        "MATUTINO",
+        "VESPERTINO",
+        "NOCTURNO",
+        "MIXTO",
+        "INTERMEDIO",
+        "TURNO MATUTINO",
+        "TURNO VESPERTINO",
+        "TURNO NOCTURNO",
+    }
+
+    normalized = re.sub(r"\s+", " ", text)
+    if " - " in normalized:
+        left, right = [part.strip() for part in normalized.split(" - ", 1)]
+        return left, right
+
+    if " / " in normalized:
+        left, right = [part.strip() for part in normalized.split(" / ", 1)]
+        return left, right
+
+    parts = normalized.split(" ")
+    if len(parts) >= 2:
+        for size in (2, 1):
+            suffix = " ".join(parts[-size:])
+            if suffix in known_shifts:
+                group = " ".join(parts[:-size]).strip()
+                return group, suffix
+
+    return normalized, ""
+
+
 # ---------- Routes ----------
 @app.route("/")
 def home():
@@ -271,6 +382,10 @@ def menu():
                 "SELECT id, student_code, password_hash FROM students WHERE LOWER(student_code) = LOWER(?) AND role = 'student'",
                 (username,),
             ).fetchone()
+            scanner = conn.execute(
+                "SELECT id, username, password_hash FROM scanners WHERE LOWER(username) = LOWER(?)",
+                (username,),
+            ).fetchone()
             conn.close()
 
             if admin and check_password_hash(admin["password_hash"], password):
@@ -286,6 +401,14 @@ def menu():
                 session["student_id"] = student["id"]
                 return redirect(url_for("student_dashboard"))
 
+            if scanner and scanner["password_hash"] and check_password_hash(scanner["password_hash"], password):
+                session.clear()
+                session["role"] = "scanner"
+                session.permanent = True
+                session["scanner_id"] = scanner["id"]
+                session["scanner_username"] = scanner["username"]
+                return redirect(url_for("scan"))
+
             error = "Usuario o contrasena incorrectos."
 
     return render_template("home.html", error=error)
@@ -298,6 +421,43 @@ def admin_login():
 
 @app.route("/student/login", methods=["GET", "POST"])
 def student_login():
+    return redirect(url_for("menu"))
+
+
+@app.route("/scanner/login", methods=["GET", "POST"])
+def scanner_login():
+    error = None
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not username or not password:
+            error = "Ingresa usuario y contrasena."
+        else:
+            conn = get_db_connection()
+            scanner = conn.execute(
+                "SELECT id, username, password_hash FROM scanners WHERE LOWER(username) = LOWER(?)",
+                (username,),
+            ).fetchone()
+            conn.close()
+
+            if scanner and check_password_hash(scanner["password_hash"], password):
+                session.clear()
+                session["role"] = "scanner"
+                session.permanent = True
+                session["scanner_id"] = scanner["id"]
+                session["scanner_username"] = scanner["username"]
+                return redirect(url_for("scan"))
+
+            error = "Usuario o contrasena incorrectos."
+
+    return render_template("home.html", error=error)
+
+
+@app.route("/scanner/logout")
+def scanner_logout():
+    session.clear()
     return redirect(url_for("menu"))
 
 
@@ -565,6 +725,77 @@ def student_qr(student_id: int):
     return render_template("student_qr.html", student=student, qr_base64=qr_base64)
 
 
+@app.route("/students/<int:student_id>/details", methods=["GET", "POST"])
+@admin_login_required
+def student_details(student_id: int):
+    conn = get_db_connection()
+    student = conn.execute(
+        "SELECT id, full_name, student_code, classroom, role, created_at, photo_filename FROM students WHERE id = ? AND role = 'student'",
+        (student_id,),
+    ).fetchone()
+
+    if not student:
+        conn.close()
+        return "Alumno no encontrado", 404
+
+    error = None
+    success = None
+
+    if request.method == "POST":
+        photo = request.files.get("photo")
+        if not photo or not photo.filename:
+            error = "Selecciona una fotografia valida."
+        else:
+            filename = secure_filename(photo.filename)
+            if not allowed_photo_file(filename):
+                error = "Formato de imagen no permitido. Usa PNG, JPG, JPEG o WEBP."
+            else:
+                os.makedirs(app.config["PHOTO_UPLOAD_FOLDER"], exist_ok=True)
+                extension = filename.rsplit(".", 1)[1].lower()
+                stored_filename = f"student_{student_id}.{extension}"
+                photo_path = os.path.join(app.config["PHOTO_UPLOAD_FOLDER"], stored_filename)
+                photo.save(photo_path)
+                conn.execute(
+                    "UPDATE students SET photo_filename = ? WHERE id = ?",
+                    (stored_filename, student_id),
+                )
+                conn.commit()
+                student = conn.execute(
+                    "SELECT id, full_name, student_code, classroom, role, created_at, photo_filename FROM students WHERE id = ?",
+                    (student_id,),
+                ).fetchone()
+                success = "Fotografia actualizada correctamente."
+
+    attendance_count = conn.execute(
+        "SELECT COUNT(*) AS total FROM attendance WHERE student_id = ?",
+        (student_id,),
+    ).fetchone()["total"]
+    recent_attendance = conn.execute(
+        """
+        SELECT attendance_date, attendance_time, source
+        FROM attendance
+        WHERE student_id = ?
+        ORDER BY attendance_date DESC, attendance_time DESC
+        LIMIT 5
+        """,
+        (student_id,),
+    ).fetchall()
+    conn.close()
+
+    qr_payload = build_external_url("student_pass", student_code=student["student_code"])
+    qr_base64 = make_qr_base64(qr_payload)
+
+    return render_template(
+        "student_details.html",
+        student=student,
+        attendance_count=attendance_count,
+        recent_attendance=recent_attendance,
+        qr_base64=qr_base64,
+        error=error,
+        success=success,
+    )
+
+
 @app.route("/qr/<student_code>")
 def student_pass(student_code: str):
     conn = get_db_connection()
@@ -583,13 +814,13 @@ def student_pass(student_code: str):
 
 
 @app.route("/scan")
-@admin_login_required
+@admin_or_scanner_required
 def scan():
     return render_template("scan.html")
 
 
 @app.route("/api/checkin", methods=["POST"])
-@admin_login_required
+@admin_or_scanner_required
 def checkin():
     data = request.get_json(silent=True) or {}
     raw_payload = data.get("student_code", "")
@@ -646,7 +877,7 @@ def checkin():
 
 
 @app.route("/attendance")
-@admin_login_required
+@admin_or_scanner_required
 def attendance():
     selected_date = request.args.get("date", datetime.now().strftime("%Y-%m-%d"))
 
@@ -663,7 +894,30 @@ def attendance():
     ).fetchall()
     conn.close()
 
-    return render_template("attendance.html", records=rows, selected_date=selected_date)
+    attendance_sections = []
+    current_section = None
+    current_records = []
+
+    for row in rows:
+        section_group, section_shift = split_classroom_section(row["classroom"])
+        section_label = section_group if not section_shift else f"{section_group} - {section_shift}"
+
+        if current_section != section_label:
+            if current_section is not None:
+                attendance_sections.append({"label": current_section, "records": current_records})
+            current_section = section_label
+            current_records = []
+
+        current_records.append(row)
+
+    if current_section is not None:
+        attendance_sections.append({"label": current_section, "records": current_records})
+
+    return render_template(
+        "attendance.html",
+        attendance_sections=attendance_sections,
+        selected_date=selected_date,
+    )
 
 
 if __name__ == "__main__":

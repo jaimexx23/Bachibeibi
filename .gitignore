@@ -1,5 +1,6 @@
 # Python
 .venv/
+.venv311/
 venv/
 __pycache__/
 *.pyc
@@ -7,6 +8,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+scripts/
+static/uploads/
 
 # Laravel
 laravel-app/node_modules/

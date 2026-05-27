@@ -57,6 +57,7 @@
             <th>Nombre</th>
             <th>Codigo</th>
             <th>Grupo</th>
+            <th>Info</th>
             <th>QR</th>
           </tr>
         </thead>
@@ -66,6 +67,7 @@
               <td>{{ student.full_name }}</td>
               <td>{{ student.student_code }}</td>
               <td>{{ student.classroom }}</td>
+              <td><a href="{{ url_for('student_details', student_id=student.id) }}">Ver informacion</a></td>
               <td><a href="{{ url_for('student_qr', student_id=student.id) }}">Ver QR</a></td>
             </tr>
           {% endfor %}
