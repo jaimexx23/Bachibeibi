@@ -12,8 +12,12 @@ return new class extends Migration
             $table->id();
             $table->string('full_name');
             $table->string('student_code')->unique();
+            $table->string('account_number')->nullable()->unique();
             $table->string('classroom');
-            $table->string('password')->nullable();
+            $table->string('role')->default('student');
+            $table->string('password_hash')->nullable();
+            $table->boolean('default_password')->default(false);
+            $table->string('photo_filename')->nullable();
             $table->timestamps();
         });
     }

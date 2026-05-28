@@ -19,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Push our active-session tracker into the web middleware group so it's executed for web requests.
+        if ($this->app->runningInConsole() === false) {
+            $router = $this->app->make(\Illuminate\Routing\Router::class);
+            $router->pushMiddlewareToGroup('web', \App\Http\Middleware\TrackActiveSession::class);
+        }
     }
 }

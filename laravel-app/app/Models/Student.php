@@ -9,6 +9,19 @@ class Student extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['full_name', 'student_code', 'account_number', 'classroom', 'password'];
+    protected $fillable = [
+        'full_name',
+        'student_code',
+        'account_number',
+        'classroom',
+        'password',
+        'photo_filename',
+        'default_password',
+    ];
+
     protected $hidden = ['password'];
+
+    protected $casts = [
+        'default_password' => 'boolean',
+    ];
 }

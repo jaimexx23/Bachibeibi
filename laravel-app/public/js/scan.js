@@ -50,5 +50,8 @@ window.manualCheckin = function manualCheckin() {
   const code = input.value.trim(); if (!code) return; sendCheckin(code, 'manual'); input.value = '';
 };
 
-const html5QrCode = new Html5QrcodeScanner('reader', { fps:10, qrbox:{width:250,height:250} });
-html5QrCode.render(onScanSuccess, onScanError);
+const readerElement = document.getElementById('reader');
+if (readerElement && typeof Html5QrcodeScanner !== 'undefined') {
+  const html5QrCode = new Html5QrcodeScanner('reader', { fps: 10, qrbox: { width: 250, height: 250 } });
+  html5QrCode.render(onScanSuccess, onScanError);
+}

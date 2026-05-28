@@ -8,20 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('attendances', function (Blueprint $table) {
+        Schema::create('attendance', function (Blueprint $table) {
             $table->id();
-            $table->string('student_code');
-            $table->string('student_name')->nullable();
-            $table->string('classroom')->nullable();
-            $table->date('date');
-            $table->timestamp('checked_at')->useCurrent();
+            $table->foreignId('student_id')->constrained('students')->cascadeOnDelete();
+            $table->date('attendance_date');
+            $table->time('attendance_time');
             $table->string('source')->default('qr');
-            $table->unique(['student_code','date']);
+            $table->unique(['student_id', 'attendance_date']);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('attendances');
+        Schema::dropIfExists('attendance');
     }
 };

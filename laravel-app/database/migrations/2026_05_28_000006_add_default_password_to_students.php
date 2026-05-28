@@ -8,18 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasColumn('students', 'account_number')) {
+        if (! Schema::hasColumn('students', 'default_password')) {
             Schema::table('students', function (Blueprint $table) {
-                $table->string('account_number')->nullable()->unique()->after('student_code');
+                $table->boolean('default_password')->default(false)->after('password');
             });
         }
     }
 
     public function down(): void
     {
-        if (Schema::hasColumn('students', 'account_number')) {
+        if (Schema::hasColumn('students', 'default_password')) {
             Schema::table('students', function (Blueprint $table) {
-                $table->dropColumn('account_number');
+                $table->dropColumn('default_password');
             });
         }
     }

@@ -1,33 +1,38 @@
 <?php
 
+use App\Http\Controllers\BachilleresController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::match(['get', 'post'], '/', [BachilleresController::class, 'home'])->name('home');
+Route::match(['get', 'post'], '/menu', [BachilleresController::class, 'menu'])->name('menu');
 
-use App\Http\Controllers\StudentController;
+Route::get('/admin/login', [BachilleresController::class, 'adminLogin'])->name('admin.login');
+Route::post('/admin/login', [BachilleresController::class, 'menu']);
+Route::get('/student/login', [BachilleresController::class, 'studentLogin'])->name('student.login');
+Route::post('/student/login', [BachilleresController::class, 'menu']);
+Route::get('/scanner/login', [BachilleresController::class, 'scannerLogin'])->name('scanner.login');
+Route::post('/scanner/login', [BachilleresController::class, 'menu']);
 
-Route::get('/student/register', [StudentController::class, 'registerForm'])->name('student.register');
-Route::post('/student/register', [StudentController::class, 'register']);
-Route::get('/student/login', [StudentController::class, 'loginForm'])->name('student.login');
-Route::post('/student/login', [StudentController::class, 'login']);
-Route::get('/student/logout', [StudentController::class, 'logout'])->name('student.logout');
-Route::get('/student/dashboard', [StudentController::class, 'dashboard'])->name('student.dashboard');
-Route::get('/qr/{student_code}', [StudentController::class, 'publicQr'])->name('student.qr');
-Route::post('/api/checkin', [StudentController::class, 'checkin'])->name('api.checkin');
+Route::get('/admin/logout', [BachilleresController::class, 'adminLogout'])->name('admin.logout');
+Route::get('/student/logout', [BachilleresController::class, 'studentLogout'])->name('student.logout');
+Route::get('/scanner/logout', [BachilleresController::class, 'scannerLogout'])->name('scanner.logout');
 
-// Admin/student management
-Route::get('/students', [StudentController::class, 'index'])->name('students.index');
-Route::post('/students', [StudentController::class, 'storeAdmin'])->name('students.store');
-Route::get('/students/{id}/qr', [StudentController::class, 'qrById'])->name('students.qr');
+Route::match(['get', 'post'], '/student/register', [BachilleresController::class, 'studentRegister'])->name('student.register');
+Route::match(['get', 'post'], '/student/dashboard', [BachilleresController::class, 'studentDashboard'])->name('student.dashboard');
+Route::get('/student', [BachilleresController::class, 'studentHome'])->name('student.home');
+Route::get('/student/profile', [BachilleresController::class, 'studentProfile'])->name('student.profile');
+Route::post('/student/profile', [BachilleresController::class, 'studentProfileUpdate'])->name('student.profile.update');
+Route::get('/student/change-password', [BachilleresController::class, 'studentChangePassword'])->name('student.change_password');
+Route::post('/student/change-password', [BachilleresController::class, 'studentChangePasswordUpdate'])->name('student.change_password.update');
 
-// Scanner and attendance listing
-Route::get('/scan', function () { return view('scan'); })->name('scan');
-Route::get('/attendance', function () { return view('attendance'); })->name('attendance');
+Route::match(['get', 'post'], '/admin', [BachilleresController::class, 'adminDashboard'])->name('admin.dashboard');
+Route::get('/students', [BachilleresController::class, 'studentsIndex'])->name('students.index');
+Route::post('/students', [BachilleresController::class, 'studentsStore'])->name('students.store');
+Route::post('/students/{student}/delete', [BachilleresController::class, 'studentsDestroy'])->name('students.destroy');
+Route::get('/students/{student}/qr', [BachilleresController::class, 'studentsQr'])->name('students.qr');
+Route::match(['get', 'post'], '/students/{student}/details', [BachilleresController::class, 'studentsDetails'])->name('students.details');
 
-// Student profile routes (student must be logged in)
-Route::get('/student/profile', [StudentController::class, 'showProfile'])->name('student.profile');
-Route::post('/student/profile', [StudentController::class, 'updateProfile'])->name('student.profile.update');
-Route::get('/student/change-password', [StudentController::class, 'showChangePassword'])->name('student.change_password');
-Route::post('/student/change-password', [StudentController::class, 'updatePassword'])->name('student.change_password.update');
+Route::get('/qr/{student_code}', [BachilleresController::class, 'studentPass'])->name('student.qr');
+Route::get('/scan', [BachilleresController::class, 'scan'])->name('scan');
+Route::post('/api/checkin', [BachilleresController::class, 'checkin'])->name('api.checkin');
+Route::get('/attendance', [BachilleresController::class, 'attendance'])->name('attendance');
