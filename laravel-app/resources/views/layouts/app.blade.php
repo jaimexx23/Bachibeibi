@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ config('app.name', 'BachilleresQR') }}</title>
-  <link rel="stylesheet" href="{{ asset('css/styles.css') }}">
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <div class="shell">
@@ -50,6 +50,6 @@
   </div>
 
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <script src="{{ asset('js/scan.js') }}"></script>
+  <script src="/js/scan.js"></script>
 </body>
 </html>

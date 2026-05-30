@@ -34,7 +34,7 @@
 
   <article class="card">
     <h3 class="card-title">Subir fotografía</h3>
-    <p class="card-subtitle">PNG, JPG, JPEG o WEBP. Máximo 4 MB.</p>
+    <p class="card-subtitle">PNG, JPG, JPEG o WEBP. Máximo 10 MB.</p>
 
     <form method="post" enctype="multipart/form-data" action="{{ route('students.details', $student) }}" class="form">
       @csrf
@@ -42,6 +42,9 @@
         <span>Fotografía</span>
         <input class="input" type="file" name="photo" accept="image/png,image/jpeg,image/webp" required>
       </label>
+      @if($errors->has('photo'))
+        <div class="notice notice-error">{{ $errors->first('photo') }}</div>
+      @endif
       <button class="btn" type="submit">Guardar fotografía</button>
     </form>
 

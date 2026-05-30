@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class StudentController extends Controller
 {
@@ -27,12 +28,13 @@ class StudentController extends Controller
         ]);
 
         $student_code = isset($data['student_code']) && $data['student_code'] ? $data['student_code'] : $data['account_number'];
+        $pwCol = Schema::hasColumn('students', 'password') ? 'password' : (Schema::hasColumn('students', 'password_hash') ? 'password_hash' : 'password');
         $student = Student::create([
             'full_name' => $data['full_name'],
             'student_code' => strtoupper($student_code),
             'account_number' => strtoupper($data['account_number']),
             'classroom' => strtoupper($data['classroom']),
-            'password' => Hash::make($data['password']),
+            $pwCol => Hash::make($data['password']),
         ]);
 
         session(['student_id' => $student->id]);
@@ -52,7 +54,12 @@ class StudentController extends Controller
         ]);
         $identifier = strtoupper($data['student_code']);
         $student = Student::where('student_code', $identifier)->orWhere('account_number', $identifier)->first();
-        if ($student && Hash::check($data['password'], $student->password)) {
+        $pwOk = false;
+        if ($student) {
+            if (Schema::hasColumn('students', 'password') && ! empty($student->password) && Hash::check($data['password'], $student->password)) $pwOk = true;
+            if (! $pwOk && Schema::hasColumn('students', 'password_hash') && ! empty($student->password_hash) && Hash::check($data['password'], $student->password_hash)) $pwOk = true;
+        }
+        if ($student && $pwOk) {
             session(['student_id' => $student->id]);
             return redirect()->route('student.dashboard');
         }
@@ -129,15 +136,17 @@ class StudentController extends Controller
         ]);
 
         $student_code = isset($data['student_code']) && $data['student_code'] ? $data['student_code'] : $data['account_number'];
-        // default password for all new students
-        $defaultPassword = '123456';
+        // default password for all new students (from .env or fallback)
+        $defaultPassword = (string) env('DEFAULT_STUDENT_PASSWORD', 'alumno123');
+        $pwCol = Schema::hasColumn('students', 'password') ? 'password' : (Schema::hasColumn('students', 'password_hash') ? 'password_hash' : 'password');
 
         $student = Student::create([
             'full_name' => $data['full_name'],
             'student_code' => strtoupper($student_code),
             'account_number' => strtoupper($data['account_number']),
             'classroom' => strtoupper($data['classroom']),
-            'password' => Hash::make($defaultPassword),
+            $pwCol => Hash::make($defaultPassword),
+            'default_password' => true,
         ]);
 
         return redirect()->route('students.index')->with('default_pw', ['code' => $student->student_code, 'password' => $defaultPassword]);
@@ -185,11 +194,20 @@ class StudentController extends Controller
             'password' => 'required|string|confirmed|min:6',
         ]);
 
-        if (! Hash::check($data['current_password'], $student->password)) {
+        $currentOk = false;
+        if (Schema::hasColumn('students', 'password') && ! empty($student->password) && Hash::check($data['current_password'], $student->password)) $currentOk = true;
+        if (! $currentOk && Schema::hasColumn('students', 'password_hash') && ! empty($student->password_hash) && Hash::check($data['current_password'], $student->password_hash)) $currentOk = true;
+        if (! $currentOk) {
             return back()->withErrors(['current_password' => 'Contraseña actual incorrecta']);
         }
 
-        $student->password = Hash::make($data['password']);
+        if (Schema::hasColumn('students', 'password')) {
+            $student->password = Hash::make($data['password']);
+        } elseif (Schema::hasColumn('students', 'password_hash')) {
+            $student->password_hash = Hash::make($data['password']);
+        } else {
+            $student->password = Hash::make($data['password']);
+        }
         $student->save();
 
         return redirect()->route('student.dashboard')->with('message', 'Contraseña actualizada');

@@ -35,4 +35,6 @@ Route::match(['get', 'post'], '/students/{student}/details', [BachilleresControl
 Route::get('/qr/{student_code}', [BachilleresController::class, 'studentPass'])->name('student.qr');
 Route::get('/scan', [BachilleresController::class, 'scan'])->name('scan');
 Route::post('/api/checkin', [BachilleresController::class, 'checkin'])->name('api.checkin');
+// Emergency GET endpoint (no CSRF) for manual checkin when JS cannot send CSRF token
+Route::get('/api/checkin/{student_code}', [BachilleresController::class, 'checkinGet'])->name('api.checkin.get');
 Route::get('/attendance', [BachilleresController::class, 'attendance'])->name('attendance');
