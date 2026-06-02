@@ -78,16 +78,13 @@ class BachilleresController extends Controller
 
     private function studentLoginQuery(string $username)
     {
-        // Select password_hash as `password` so existing login checks continue to work
-        $query = DB::table('students')->select('students.*', 'password_hash as password')
-            ->where(function ($q) use ($username) {
-                $q->whereRaw('LOWER(student_code) = LOWER(?)', [$username]);
+        return DB::table('students')
+            ->where(function ($query) use ($username) {
+                $query->whereRaw('LOWER(student_code) = LOWER(?)', [$username]);
                 if (Schema::hasColumn('students', 'account_number')) {
-                    $q->orWhereRaw('LOWER(account_number) = LOWER(?)', [$username]);
+                    $query->orWhereRaw('LOWER(account_number) = LOWER(?)', [$username]);
                 }
             });
-
-        return $query;
     }
 
     private function requireStudent()
@@ -415,14 +412,7 @@ class BachilleresController extends Controller
             }
 
             if ($password !== '') {
-                if (Schema::hasColumn('students', 'password')) {
-                    $student->password = Hash::make($password);
-                } elseif (Schema::hasColumn('students', 'password_hash')) {
-                    $student->password_hash = Hash::make($password);
-                } else {
-                    // Fallback: set attribute if model has it, otherwise skip
-                    $student->password = Hash::make($password);
-                }
+                $student->password = Hash::make($password);
                 $student->save();
 
                 // Persist that the password is no longer the default
@@ -443,10 +433,8 @@ class BachilleresController extends Controller
         if (Schema::hasColumn('students', 'default_password')) {
             $passwordNeedsUpdate = (bool) $student->default_password;
         } else {
-            if (Schema::hasColumn('students', 'password') && ! empty($student->password)) {
+            if (! empty($student->password)) {
                 $passwordNeedsUpdate = Hash::check($this->defaultStudentPassword(), $student->password);
-            } elseif (Schema::hasColumn('students', 'password_hash') && ! empty($student->password_hash)) {
-                $passwordNeedsUpdate = Hash::check($this->defaultStudentPassword(), $student->password_hash);
             }
         }
 
@@ -522,20 +510,9 @@ class BachilleresController extends Controller
                     ]);
                     $resetSuccess = 'Contraseña de administrador restablecida correctamente.';
                 } elseif ($student) {
-                    // Update appropriate password column depending on schema
-                    if (Schema::hasColumn('students', 'password')) {
-                        DB::table('students')->where('id', $student->id)->update([
-                            'password' => Hash::make($newPassword),
-                        ]);
-                    } elseif (Schema::hasColumn('students', 'password_hash')) {
-                        DB::table('students')->where('id', $student->id)->update([
-                            'password_hash' => Hash::make($newPassword),
-                        ]);
-                    } else {
-                        DB::table('students')->where('id', $student->id)->update([
-                            'password' => Hash::make($newPassword),
-                        ]);
-                    }
+                    DB::table('students')->where('id', $student->id)->update([
+                        'password_hash' => Hash::make($newPassword),
+                    ]);
                     $resetSuccess = 'Contraseña de alumno restablecida correctamente.';
                 } else {
                     $resetError = 'No se encontró ningún usuario con ese nombre o número de cuenta.';
@@ -617,13 +594,12 @@ class BachilleresController extends Controller
         $accountToStore = Schema::hasColumn('students', 'account_number') ? $accountNumber : null;
         $fullName = trim($data['full_name']);
 
-        $pwCol = Schema::hasColumn('students', 'password') ? 'password' : (Schema::hasColumn('students', 'password_hash') ? 'password_hash' : 'password');
         $student = Student::create([
             'full_name' => $fullName,
             'student_code' => $studentCode,
             'account_number' => $accountToStore,
             'classroom' => $classroom,
-            $pwCol => Hash::make($this->defaultStudentPassword()),
+            'password' => Hash::make($this->defaultStudentPassword()),
             'default_password' => true,
         ]);
 
@@ -671,20 +647,15 @@ class BachilleresController extends Controller
         $success = null;
 
         if ($request->isMethod('post')) {
-            // Allow configurable max upload size via env `MAX_PHOTO_UPLOAD_MB` (default 10 MB)
-            $maxMb = (int) env('MAX_PHOTO_UPLOAD_MB', 10);
-            $maxKb = $maxMb * 1024;
-            $rules = [
-                'photo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', "max:$maxKb"],
-            ];
-
-            $request->validate($rules);
+            $request->validate([
+                'photo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:4096'],
+            ]);
 
             $photo = $request->file('photo');
             if (! $photo) {
                 $error = 'Selecciona una fotografia valida.';
             } else {
-                $targetDirectory = public_path('uploads/students');
+                $targetDirectory = storage_path('app/public/students');
                 File::ensureDirectoryExists($targetDirectory);
 
                 $extension = strtolower($photo->getClientOriginalExtension() ?: 'jpg');
@@ -776,83 +747,28 @@ class BachilleresController extends Controller
             ->exists();
 
         if ($alreadyExists) {
+            $existing = DB::table('attendances')
+                ->where('student_code', $student->student_code)
+                ->where('date', $today)
+                ->orderByDesc('checked_at')
+                ->first(['checked_at']);
+
             return response()->json([
                 'ok' => false,
-                'message' => 'Asistencia ya registrada hoy',
+                'message' => 'Alumno ya registrado hoy',
                 'student' => $student->full_name,
                 'classroom' => $student->classroom,
                 'date' => $today,
+                'time' => $existing ? date('H:i:s', strtotime((string) $existing->checked_at)) : null,
             ], 409);
         }
 
         DB::table('attendances')->insert([
-            'student_id' => $student->id,
             'student_code' => $student->student_code,
             'student_name' => $student->full_name,
             'classroom' => $student->classroom,
             'date' => $today,
             'checked_at' => now()->toDateTimeString(),
-            'attendance_date' => $today,
-            'attendance_time' => now()->format('H:i:s'),
-            'source' => $source,
-        ]);
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'Asistencia registrada',
-            'student' => $student->full_name,
-            'classroom' => $student->classroom,
-            'time' => $nowTime,
-            'date' => $today,
-        ]);
-    }
-
-    // GET fallback for checkin (used when CSRF prevents POST from client)
-    public function checkinGet(string $student_code)
-    {
-        $studentCode = $this->extractStudentCode($student_code);
-        $source = 'manual';
-
-        if ($studentCode === '') {
-            return response()->json(['ok' => false, 'message' => 'Codigo vacio'], 400);
-        }
-
-        $student = Student::whereRaw('LOWER(student_code) = LOWER(?)', [$studentCode])->first();
-        if (! $student && Schema::hasColumn('students', 'account_number')) {
-            $student = Student::whereRaw('LOWER(account_number) = LOWER(?)', [$studentCode])->first();
-        }
-
-        if (! $student) {
-            return response()->json(['ok' => false, 'message' => 'Alumno no registrado'], 404);
-        }
-
-        $today = now()->toDateString();
-        $nowTime = now()->format('H:i:s');
-
-        $alreadyExists = DB::table('attendances')
-            ->where('student_code', $student->student_code)
-            ->where('date', $today)
-            ->exists();
-
-        if ($alreadyExists) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Asistencia ya registrada hoy',
-                'student' => $student->full_name,
-                'classroom' => $student->classroom,
-                'date' => $today,
-            ], 409);
-        }
-
-        DB::table('attendances')->insert([
-            'student_id' => $student->id,
-            'student_code' => $student->student_code,
-            'student_name' => $student->full_name,
-            'classroom' => $student->classroom,
-            'date' => $today,
-            'checked_at' => now()->toDateTimeString(),
-            'attendance_date' => $today,
-            'attendance_time' => now()->format('H:i:s'),
             'source' => $source,
         ]);
 

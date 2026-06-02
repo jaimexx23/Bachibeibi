@@ -21,9 +21,22 @@
       <div><strong>Archivo:</strong> {{ $student->photo_filename ?? 'Sin foto' }}</div>
     </div>
 
-    @if($student->photo_filename && file_exists(public_path('uploads/students/' . $student->photo_filename)))
+    @php
+      $studentPhotoFilename = $student->photo_filename;
+      $photoInStoragePath = $studentPhotoFilename ? storage_path('app/public/students/' . $studentPhotoFilename) : null;
+      $photoInLegacyPublicPath = $studentPhotoFilename ? public_path('uploads/students/' . $studentPhotoFilename) : null;
+      $photoUrl = null;
+
+      if ($studentPhotoFilename && $photoInStoragePath && file_exists($photoInStoragePath)) {
+        $photoUrl = asset('storage/students/' . $studentPhotoFilename);
+      } elseif ($studentPhotoFilename && $photoInLegacyPublicPath && file_exists($photoInLegacyPublicPath)) {
+        $photoUrl = asset('uploads/students/' . $studentPhotoFilename);
+      }
+    @endphp
+
+    @if($photoUrl)
       <div class="photo-preview">
-        <img src="{{ asset('uploads/students/' . $student->photo_filename) }}" alt="Foto de {{ $student->full_name }}">
+        <img src="{{ $photoUrl }}" alt="Foto de {{ $student->full_name }}">
       </div>
     @endif
 
@@ -34,7 +47,7 @@
 
   <article class="card">
     <h3 class="card-title">Subir fotografía</h3>
-    <p class="card-subtitle">PNG, JPG, JPEG o WEBP. Máximo 10 MB.</p>
+    <p class="card-subtitle">PNG, JPG, JPEG o WEBP. Máximo 4 MB.</p>
 
     <form method="post" enctype="multipart/form-data" action="{{ route('students.details', $student) }}" class="form">
       @csrf
@@ -42,9 +55,6 @@
         <span>Fotografía</span>
         <input class="input" type="file" name="photo" accept="image/png,image/jpeg,image/webp" required>
       </label>
-      @if($errors->has('photo'))
-        <div class="notice notice-error">{{ $errors->first('photo') }}</div>
-      @endif
       <button class="btn" type="submit">Guardar fotografía</button>
     </form>
 
