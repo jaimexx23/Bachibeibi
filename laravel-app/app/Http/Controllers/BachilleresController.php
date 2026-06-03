@@ -198,6 +198,33 @@ class BachilleresController extends Controller
         return [$normalized, ''];
     }
 
+    private function studentGroupSortKey(string $group): array
+    {
+        $normalized = strtoupper(trim($group));
+        if ($normalized === '') {
+            return [PHP_INT_MAX, ''];
+        }
+
+        if (preg_match('/^(\d+)/', $normalized, $matches)) {
+            return [(int) $matches[1], $normalized];
+        }
+
+        return [PHP_INT_MAX, $normalized];
+    }
+
+    private function studentShiftSortKey(string $shift): array
+    {
+        $normalized = strtoupper(trim($shift));
+        $order = [
+            'MATUTINO' => 1,
+            'VESPERTINO' => 2,
+            'NOCTURNO' => 3,
+            'MIXTO' => 4,
+        ];
+
+        return [$order[$normalized] ?? 99, $normalized];
+    }
+
     public function home()
     {
         return redirect()->route('menu');
@@ -530,9 +557,75 @@ class BachilleresController extends Controller
             return $access;
         }
 
-        $students = Student::orderBy('full_name')->get();
+        $search = trim((string) request('search', ''));
+        $studentsQuery = Student::query();
 
-        return view('students.index', compact('students'));
+        if ($search !== '') {
+            $studentsQuery->whereRaw('UPPER(account_number) LIKE ?', ['%' . strtoupper($search) . '%']);
+        }
+
+        $students = $studentsQuery->get()->map(function (Student $student) {
+            [$group, $shift] = $this->splitClassroomSection((string) $student->classroom);
+
+            $student->display_group = $group !== '' ? $group : 'SIN GRUPO';
+            $student->display_shift = $shift !== '' ? $shift : 'SIN TURNO';
+
+            return $student;
+        })->sort(function (Student $left, Student $right) {
+            [$leftGroupOrder, $leftGroupName] = $this->studentGroupSortKey((string) $left->display_group);
+            [$rightGroupOrder, $rightGroupName] = $this->studentGroupSortKey((string) $right->display_group);
+
+            if ($leftGroupOrder !== $rightGroupOrder) {
+                return $leftGroupOrder <=> $rightGroupOrder;
+            }
+
+            if ($leftGroupName !== $rightGroupName) {
+                return strcmp($leftGroupName, $rightGroupName);
+            }
+
+            [$leftShiftOrder, $leftShiftName] = $this->studentShiftSortKey((string) $left->display_shift);
+            [$rightShiftOrder, $rightShiftName] = $this->studentShiftSortKey((string) $right->display_shift);
+
+            if ($leftShiftOrder !== $rightShiftOrder) {
+                return $leftShiftOrder <=> $rightShiftOrder;
+            }
+
+            if ($leftShiftName !== $rightShiftName) {
+                return strcmp($leftShiftName, $rightShiftName);
+            }
+
+            return strcmp((string) $left->full_name, (string) $right->full_name);
+        })->values();
+
+        $groupedStudents = $students->groupBy(function ($student) {
+            return (string) $student->display_group;
+        })->map(function ($groupStudents) {
+            return $groupStudents->groupBy(function ($student) {
+                return (string) $student->display_shift;
+            })->map(function ($shiftStudents) {
+                return $shiftStudents->values();
+            })->sortKeysUsing(function ($left, $right) {
+                [$leftOrder, $leftName] = $this->studentShiftSortKey($left);
+                [$rightOrder, $rightName] = $this->studentShiftSortKey($right);
+
+                if ($leftOrder !== $rightOrder) {
+                    return $leftOrder <=> $rightOrder;
+                }
+
+                return strcmp($leftName, $rightName);
+            });
+        })->sortKeysUsing(function ($left, $right) {
+            [$leftOrder, $leftName] = $this->studentGroupSortKey($left);
+            [$rightOrder, $rightName] = $this->studentGroupSortKey($right);
+
+            if ($leftOrder !== $rightOrder) {
+                return $leftOrder <=> $rightOrder;
+            }
+
+            return strcmp($leftName, $rightName);
+        });
+
+        return view('students.index', compact('students', 'groupedStudents', 'search'));
     }
 
     public function studentsStore(Request $request)

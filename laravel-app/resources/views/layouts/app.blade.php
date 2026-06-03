@@ -3,15 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ config('app.name', 'BachilleresQR') }}</title>
+  <title>{{ config('app.name', 'Colegio de Bachilleres') }}</title>
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <div>
-        <div class="brand">BachilleresQR</div>
-        <div class="brand-subtitle">Asistencia y QR con Laravel</div>
+        <div class="brand">Colegio de Bachilleres</div>
       </div>
 
       <nav class="nav">

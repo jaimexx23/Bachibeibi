@@ -158,6 +158,102 @@ img { max-width: 100%; display: block; }
 	border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
+.student-groups {
+	display: grid;
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
+.student-toolbar {
+	margin-top: 1rem;
+	padding: 1rem;
+	border-radius: 18px;
+	background: rgba(255,255,255,0.78);
+	border: 1px solid rgba(123, 11, 31, 0.08);
+}
+
+.student-toolbar-head {
+	display: flex;
+	align-items: start;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	margin-bottom: 1rem;
+}
+
+.student-toolbar-kicker {
+	margin: 0 0 0.35rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	font-size: 0.75rem;
+	font-weight: 800;
+	color: var(--brand);
+}
+
+.student-toolbar-title {
+	margin: 0;
+	font-family: 'Space Grotesk', sans-serif;
+	font-size: 1.02rem;
+	letter-spacing: -0.03em;
+	color: var(--ink);
+}
+
+.student-filter-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 0.9rem;
+	align-items: end;
+}
+
+.student-filter-field-wide { min-width: 0; }
+.student-filter-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem;
+	justify-content: flex-end;
+	align-items: center;
+}
+
+.student-group-card {
+	padding: 1rem;
+	border-radius: 18px;
+	background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(252, 247, 248, 0.92));
+	border: 1px solid rgba(123, 11, 31, 0.08);
+	box-shadow: 0 12px 28px rgba(43, 11, 15, 0.05);
+}
+
+.student-group-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 0.75rem;
+}
+
+.student-group-title,
+.student-shift-title {
+	margin: 0;
+	font-family: 'Space Grotesk', sans-serif;
+	letter-spacing: -0.02em;
+}
+
+.student-group-title { font-size: 1.15rem; }
+.student-group-subtitle { margin: 0.25rem 0 0; color: var(--muted); }
+
+.student-shift-block {
+	margin-top: 0.9rem;
+	padding-top: 0.9rem;
+	border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.student-shift-title {
+	font-size: 0.92rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--brand);
+	margin: 0 0 0.55rem;
+}
+
 .muted { color: var(--muted); }
 .card-title { font-size: clamp(1.3rem, 2vw, 1.7rem); }
 .card-subtitle { margin: 0.35rem 0 0; }
