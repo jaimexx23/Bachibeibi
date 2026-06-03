@@ -740,25 +740,57 @@ class BachilleresController extends Controller
         $success = null;
 
         if ($request->isMethod('post')) {
-            $request->validate([
-                'photo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:4096'],
-            ]);
+            // If a photo was uploaded, handle photo update
+            if ($request->hasFile('photo')) {
+                $request->validate([
+                    'photo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:4096'],
+                ]);
 
-            $photo = $request->file('photo');
-            if (! $photo) {
-                $error = 'Selecciona una fotografia valida.';
-            } else {
-                $targetDirectory = storage_path('app/public/students');
-                File::ensureDirectoryExists($targetDirectory);
+                $photo = $request->file('photo');
+                if (! $photo) {
+                    $error = 'Selecciona una fotografia valida.';
+                } else {
+                    $targetDirectory = storage_path('app/public/students');
+                    File::ensureDirectoryExists($targetDirectory);
 
-                $extension = strtolower($photo->getClientOriginalExtension() ?: 'jpg');
-                $storedFilename = 'student_' . $student->id . '.' . $extension;
-                $photo->move($targetDirectory, $storedFilename);
+                    $extension = strtolower($photo->getClientOriginalExtension() ?: 'jpg');
+                    $storedFilename = 'student_' . $student->id . '.' . $extension;
+                    $photo->move($targetDirectory, $storedFilename);
 
-                $student->photo_filename = $storedFilename;
+                    $student->photo_filename = $storedFilename;
+                    $student->save();
+                    $student = $student->fresh();
+                    $success = 'Fotografia actualizada correctamente.';
+                }
+            } elseif ($request->has('full_name') || $request->has('account_number') || $request->has('classroom')) {
+                // Handle profile edits from admin details page
+                $rules = [
+                    'full_name' => ['required', 'string', 'max:255'],
+                    'classroom' => ['nullable', 'string', 'max:255'],
+                ];
+                if (Schema::hasColumn('students', 'account_number')) {
+                    $rules['account_number'] = ['required', 'string', 'max:255'];
+                }
+
+                $data = $request->validate($rules);
+
+                $student->full_name = trim($data['full_name']);
+                if (isset($data['classroom'])) {
+                    $student->classroom = strtoupper(trim((string) $data['classroom']));
+                }
+                if (Schema::hasColumn('students', 'account_number') && isset($data['account_number'])) {
+                    $account = strtoupper(trim($data['account_number']));
+                    // ensure uniqueness when changed
+                    $exists = DB::table('students')->whereRaw('UPPER(account_number) = ?', [$account])->where('id', '<>', $student->id)->exists();
+                    if ($exists) {
+                        return back()->with('error', 'El número de cuenta ya está en uso por otro alumno.');
+                    }
+                    $student->account_number = $account;
+                }
+
                 $student->save();
                 $student = $student->fresh();
-                $success = 'Fotografia actualizada correctamente.';
+                $success = 'Datos actualizados correctamente.';
             }
         }
 

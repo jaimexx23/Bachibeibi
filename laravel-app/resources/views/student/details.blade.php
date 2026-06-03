@@ -21,6 +21,35 @@
       <div><strong>Archivo:</strong> {{ $student->photo_filename ?? 'Sin foto' }}</div>
     </div>
 
+    <h3 class="card-title" style="margin-top: 1.5rem;">Editar datos</h3>
+    <p class="card-subtitle">Modifica el nombre, número de cuenta o grupo del alumno.</p>
+
+    <form method="post" action="{{ route('students.details', $student) }}" class="form">
+      @csrf
+      <div class="form-grid">
+        <label class="field">
+          <span>Nombre completo</span>
+          <input class="input" name="full_name" value="{{ old('full_name', $student->full_name) }}" required>
+        </label>
+
+        @if(
+          Illuminate\Support\Facades\Schema::hasColumn('students', 'account_number')
+        )
+        <label class="field">
+          <span>Número de cuenta</span>
+          <input class="input" name="account_number" value="{{ old('account_number', $student->account_number) }}" required>
+        </label>
+        @endif
+
+        <label class="field">
+          <span>Grupo / Aula</span>
+          <input class="input" name="classroom" value="{{ old('classroom', $student->classroom) }}">
+        </label>
+      </div>
+
+      <button class="btn" type="submit">Guardar cambios</button>
+    </form>
+
     @php
       $studentPhotoFilename = $student->photo_filename;
       $photoInStoragePath = $studentPhotoFilename ? storage_path('app/public/students/' . $studentPhotoFilename) : null;
