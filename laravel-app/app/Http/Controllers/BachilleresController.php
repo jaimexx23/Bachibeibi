@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 
@@ -2067,12 +2068,12 @@ class BachilleresController extends Controller
                     'student_code',
                     $student->student_code
                 )
-                ->orderByDesc('date')
-                ->orderByDesc('checked_at')
+                ->orderByDesc('attendance_date')
+                ->orderByDesc('attendance_time')
                 ->limit(5)
                 ->get([
-                    'date as attendance_date',
-                    'checked_at as attendance_time',
+                    'attendance_date',
+                    'attendance_time',
                     'source',
                 ]);
 
@@ -2257,16 +2258,16 @@ class BachilleresController extends Controller
         $nowTime = now()->format('H:i:s');
 
         $alreadyExists = DB::table('attendances')
-            ->where('student_code', $student->student_code)
-            ->where('date', $today)
+            ->where('student_id', $student->id)
+            ->where('attendance_date', $today)
             ->exists();
 
         if ($alreadyExists) {
             $existing = DB::table('attendances')
-                ->where('student_code', $student->student_code)
-                ->where('date', $today)
-                ->orderByDesc('checked_at')
-                ->first(['checked_at']);
+                ->where('student_id', $student->id)
+                ->where('attendance_date', $today)
+                ->orderByDesc('attendance_time')
+                ->first(['attendance_time']);
 
             return response()->json([
                 'ok' => false,
@@ -2274,22 +2275,31 @@ class BachilleresController extends Controller
                 'student' => $student->full_name,
                 'classroom' => $student->classroom,
                 'date' => $today,
-                'time' => $existing
-                    ? date(
-                        'H:i:s',
-                        strtotime((string) $existing->checked_at)
-                    )
-                    : null,
+                'time' => $existing?->attendance_time,
             ], 409);
         }
 
         try {
+            $checkedAt = now();
+
             DB::table('attendances')->insert([
+                // Relación obligatoria con el alumno.
+                'student_id' => $student->id,
+
+                // Datos de referencia del alumno.
                 'student_code' => $student->student_code,
                 'student_name' => $student->full_name,
                 'classroom' => $student->classroom,
-                'date' => $today,
-                'checked_at' => now()->toDateTimeString(),
+
+                // Columnas actuales de asistencia.
+                'attendance_date' => $checkedAt->toDateString(),
+                'attendance_time' => $checkedAt->format('H:i:s'),
+
+                // Columnas heredadas: se mantienen por compatibilidad
+                // con vistas o datos previos del sistema.
+                'date' => $checkedAt->toDateString(),
+                'checked_at' => $checkedAt->toDateTimeString(),
+
                 'source' => $source,
             ]);
 
@@ -2298,34 +2308,22 @@ class BachilleresController extends Controller
                 'message' => 'Asistencia registrada',
                 'student' => $student->full_name,
                 'classroom' => $student->classroom,
-                'time' => $nowTime,
-                'date' => $today,
+                'time' => $checkedAt->format('H:i:s'),
+                'date' => $checkedAt->toDateString(),
             ]);
         } catch (\Throwable $e) {
-            $payload = [
+            Log::error('Error registrando asistencia', [
+                'student_id' => $student->id ?? null,
+                'student_code' => $student->student_code ?? null,
+                'source' => $source,
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
                 'ok' => false,
                 'message' => 'No se pudo registrar la asistencia.',
-            ];
-
-            if (config('app.debug')) {
-                $payload['error'] = $e->getMessage();
-            }
-
-            return response()->json($payload, 500);
+            ], 500);
         }
-    }
-
-    /*
-     * Compatibilidad defensiva con la ruta GET antigua.
-     * No registra asistencias por GET.
-     */
-    public function checkinGet(string $student_code)
-    {
-        return response()->json([
-            'ok' => false,
-            'message' => 'Método no permitido. Usa POST /api/checkin.',
-            'student_code' => strtoupper(trim($student_code)),
-        ], 405);
     }
 
     /*
@@ -2363,7 +2361,7 @@ class BachilleresController extends Controller
                     'a.student_code'
                 )
                 ->where(
-                    'a.date',
+                    'a.attendance_date',
                     $selectedDate
                 )
                 ->orderBy(
@@ -2376,8 +2374,8 @@ class BachilleresController extends Controller
                     's.full_name',
                     's.student_code',
                     's.classroom',
-                    'a.checked_at as attendance_time',
-                    'a.date as attendance_date',
+                    'a.attendance_time',
+                    'a.attendance_date',
                     'a.source',
                 ]);
 
