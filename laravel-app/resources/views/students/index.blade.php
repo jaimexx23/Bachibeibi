@@ -58,8 +58,8 @@
 
       <form method="get" action="{{ route('students.index') }}" class="student-filter-grid">
         <label class="field student-filter-field student-filter-field-wide">
-          <span>Número de cuenta</span>
-          <input class="input" name="search" value="{{ $search }}" placeholder="Ej. 202208463">
+          <span>Nombre o número de cuenta</span>
+          <input class="input" name="search" value="{{ $search }}" placeholder="Ej. 202208463 o María López">
         </label>
 
         <div class="student-filter-actions">

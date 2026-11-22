@@ -91,7 +91,14 @@
     <div class="list">
       @forelse($recentAttendance as $row)
         <div class="list-item">
-          <div>{{ $row->attendance_date }} {{ $row->attendance_time }}</div>
+          <div>
+            {{ $row->attendance_date }} {{ $row->attendance_time }}
+            @if($row->attendance_status['is_late'])
+              <strong style="color:#a31515;">· RETARDO</strong>
+            @else
+              <strong style="color:#2f6b2f;">· PUNTUAL</strong>
+            @endif
+          </div>
           <div class="muted">{{ $row->source }}</div>
         </div>
       @empty

@@ -3,9 +3,15 @@
 @section('content')
 <section class="grid grid-2">
   <article class="card">
-    <p class="hero-eyebrow">Panel del alumno</p>
+    <p class="hero-eyebrow">{{ $isParent ? 'Panel familiar' : 'Panel del alumno' }}</p>
     <h2 class="card-title">{{ $student->full_name }}</h2>
     <p class="card-subtitle">Código: {{ $student->student_code }} | Grupo: {{ $student->classroom }}</p>
+
+    @if($isAtRisk)
+      <div class="notice notice-error">
+        <strong>Alerta:</strong> el alumno tiene 3 días escolares consecutivos sin asistencia.
+      </div>
+    @endif
 
     @if($error)
       <div class="notice notice-error">{{ $error }}</div>
@@ -20,6 +26,20 @@
     </div>
 
     <p class="qr-url"><a href="{{ $qrPayload }}" target="_blank" rel="noreferrer">Abrir enlace del QR</a></p>
+
+    <h3 class="card-title">Últimas asistencias</h3>
+    @forelse($recentAttendance as $attendance)
+      <p>
+        {{ $attendance->attendance_date }} · {{ $attendance->attendance_time }} · {{ $attendance->source }}
+        @if($attendance->attendance_status['is_late'])
+          · <strong style="color:#a31515;">RETARDO</strong>
+        @else
+          · <strong style="color:#2f6b2f;">PUNTUAL</strong>
+        @endif
+      </p>
+    @empty
+      <p class="card-subtitle">No hay asistencias registradas.</p>
+    @endforelse
   </article>
 
   @if($passwordNeedsUpdate)
@@ -45,7 +65,7 @@
     </form>
 
     <div class="actions">
-      <a class="btn btn-secondary" href="{{ route('student.logout') }}">Cerrar sesión</a>
+      <a class="btn btn-secondary" href="{{ $isParent ? route('parent.logout') : route('student.logout') }}">Cerrar sesión</a>
     </div>
   </article>
   @endif

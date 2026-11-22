@@ -19,12 +19,15 @@ class Student extends Model
         'password_hash',
         'photo_filename',
         'default_password',
+        'parent_password_hash',
+        'parent_default_password',
     ];
 
     protected $hidden = ['password_hash'];
 
     protected $casts = [
         'default_password' => 'boolean',
+        'parent_default_password' => 'boolean',
     ];
 
     public function setPasswordAttribute($value)

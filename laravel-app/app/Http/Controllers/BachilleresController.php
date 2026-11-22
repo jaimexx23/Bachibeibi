@@ -144,6 +144,7 @@ class BachilleresController extends Controller
 
         $userId = match ($role) {
             'student' => session('student_id'),
+            'parent' => session('student_id'),
             'admin' => session('admin_id'),
             'scanner' => session('scanner_id'),
             default => null,
@@ -204,7 +205,7 @@ class BachilleresController extends Controller
 
         $adminPassword = (string) env(
             'ADMIN_PASSWORD',
-            'admin123'
+            'Bachilleres05Ad'
         );
 
         $admin = DB::table('admins')
@@ -232,7 +233,7 @@ class BachilleresController extends Controller
 
         $scannerPassword = (string) env(
             'SCANNER_PASSWORD',
-            'scanner123'
+            'Administracion05sc'
         );
 
         $scanner = DB::table('scanners')
@@ -249,6 +250,152 @@ class BachilleresController extends Controller
                 'created_at' => $now,
             ]);
         }
+    }
+
+    private function studentsAtRisk()
+    {
+        $schoolDates = [];
+        $date = now()->startOfDay()->subDay();
+
+        while (count($schoolDates) < 3) {
+            if ($this->isInstructionalDate($date->toDateString())) {
+                $schoolDates[] = $date->toDateString();
+            }
+
+            $date->subDay();
+        }
+
+        $attendanceCodes = DB::table('attendances')
+            ->whereIn('attendance_date', $schoolDates)
+            ->get([
+                'student_code',
+                'attendance_date',
+            ])
+            ->groupBy('student_code');
+
+        $todayAttendanceCodes = DB::table('attendances')
+            ->where('attendance_date', now()->toDateString())
+            ->pluck('student_code')
+            ->unique();
+
+        return Student::query()
+            ->get([
+                'id',
+                'full_name',
+                'student_code',
+                'classroom',
+                'created_at',
+            ])
+            ->filter(function ($student) use ($attendanceCodes, $schoolDates, $todayAttendanceCodes) {
+                if ($todayAttendanceCodes->contains($student->student_code)) {
+                    return false;
+                }
+
+                if (
+                    $student->created_at &&
+                    $student->created_at->toDateString() >
+                    min($schoolDates)
+                ) {
+                    return false;
+                }
+
+                return !$attendanceCodes->has($student->student_code);
+            })
+            ->sortBy([
+                ['full_name', 'asc'],
+                ['student_code', 'asc'],
+            ])
+            ->values();
+    }
+
+    private function isInstructionalDate(string $date): bool
+    {
+        $calendar = config('school_calendar');
+        $dateValue = strtotime($date);
+
+        if (
+            date('N', $dateValue) >= 6 ||
+            in_array(
+                $date,
+                $calendar['non_instructional_dates'],
+                true
+            )
+        ) {
+            return false;
+        }
+
+        foreach ($calendar['vacation_periods'] as $period) {
+            if (
+                $date >= $period['start'] &&
+                $date <= $period['end']
+            ) {
+                return false;
+            }
+        }
+
+        foreach ($calendar['periods'] as $period) {
+            if (
+                $date >= $period['start'] &&
+                $date <= $period['end']
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function attendanceStatus(
+        string $classroom,
+        string $attendanceTime,
+        string $attendanceDate
+    ): array
+    {
+        $time = trim($attendanceTime);
+        if (preg_match('/^\d{2}:\d{2}$/', $time)) {
+            $time .= ':00';
+        }
+        $shift = strtoupper((string) $classroom);
+
+        if (
+            str_contains($shift, 'VESPERTINO') ||
+            str_ends_with($shift, '-V')
+        ) {
+            $expectedTime = '13:40:00';
+        } elseif (
+            str_contains($shift, 'MATUTINO') ||
+            str_ends_with($shift, '-M')
+        ) {
+            $expectedTime = '07:10:00';
+        } else {
+            return [
+                'label' => 'Sin horario',
+                'is_late' => false,
+            ];
+        }
+
+        if (preg_match('/(\d{3})-([MV])/', $shift, $matches)) {
+            $dayNumber = date('N', strtotime($attendanceDate));
+            $dayNames = config('attendance_schedules.day_names');
+            $dayName = $dayNames[$dayNumber] ?? null;
+            $groupKey = $matches[1] . '-' . $matches[2];
+            $overrideKey = $groupKey . '|' . $dayName;
+            $overrides = config(
+                'attendance_schedules.late_threshold_overrides',
+                []
+            );
+
+            if (isset($overrides[$overrideKey])) {
+                $expectedTime = $overrides[$overrideKey];
+            }
+        }
+
+        $isLate = strcmp($time, $expectedTime) > 0;
+
+        return [
+            'label' => $isLate ? 'Retardo' : 'Puntual',
+            'is_late' => $isLate,
+        ];
     }
 
     /*
@@ -295,6 +442,18 @@ class BachilleresController extends Controller
         return null;
     }
 
+    private function requireStudentOrParent()
+    {
+        if (
+            !in_array(session('role'), ['student', 'parent'], true) ||
+            !session('student_id')
+        ) {
+            return redirect()->route('menu');
+        }
+
+        return null;
+    }
+
     private function requireAdmin()
     {
         if (
@@ -327,6 +486,11 @@ class BachilleresController extends Controller
         }
 
         return redirect()->route('menu');
+    }
+
+    public function parentLogout(Request $request)
+    {
+        return $this->studentLogout($request);
     }
 
     /*
@@ -561,7 +725,7 @@ class BachilleresController extends Controller
         }
 
         if (
-            session('role') === 'student' &&
+            in_array(session('role'), ['student', 'parent'], true) &&
             session('student_id')
         ) {
             $this->touchActiveSession($request);
@@ -686,6 +850,53 @@ class BachilleresController extends Controller
 
             return redirect()
                 ->route('admin.dashboard');
+        }
+
+        /*
+         * ================================================================
+         * PADRE / MADRE / TUTOR
+         * ================================================================
+         */
+
+        $parent = Schema::hasColumn('students', 'parent_password_hash')
+            ? Student::query()
+                ->whereRaw(
+                    'UPPER(account_number) = ?',
+                    [$username]
+                )
+                ->first()
+            : null;
+
+        if (
+            $parent &&
+            !empty($parent->parent_password_hash) &&
+            Hash::check(
+                $password,
+                $parent->parent_password_hash
+            )
+        ) {
+            RateLimiter::clear($rateLimitKey);
+
+            session()->flush();
+
+            $request
+                ->session()
+                ->regenerate();
+
+            session([
+                'role' => 'parent',
+                'student_id' => $parent->id,
+                'parent_student_id' => $parent->id,
+            ]);
+
+            $this->registerActiveSession(
+                $request,
+                'parent',
+                (int) $parent->id
+            );
+
+            return redirect()
+                ->route('student.dashboard');
         }
 
         /*
@@ -934,7 +1145,7 @@ class BachilleresController extends Controller
 
     public function studentDashboard(Request $request)
     {
-        $access = $this->requireStudent();
+        $access = $this->requireStudentOrParent();
 
         if ($access) {
             return $access;
@@ -1013,21 +1224,27 @@ class BachilleresController extends Controller
                         ->route('student.dashboard');
                 }
 
-                /*
-                 * El modelo Student convierte automáticamente
-                 * password → password_hash.
-                 */
-                $student->password =
-                    $password;
+                if (session('role') === 'parent') {
+                    $student->parent_password_hash =
+                        Hash::make($password);
+                    $student->parent_default_password = false;
+                } else {
+                    /*
+                     * El modelo Student convierte automáticamente
+                     * password → password_hash.
+                     */
+                    $student->password =
+                        $password;
 
-                if (
-                    Schema::hasColumn(
-                        'students',
-                        'default_password'
-                    )
-                ) {
-                    $student->default_password =
-                        false;
+                    if (
+                        Schema::hasColumn(
+                            'students',
+                            'default_password'
+                        )
+                    ) {
+                        $student->default_password =
+                            false;
+                    }
                 }
 
                 $student->save();
@@ -1055,7 +1272,10 @@ class BachilleresController extends Controller
          */
         $passwordNeedsUpdate = false;
 
-        if (
+        if (session('role') === 'parent') {
+            $passwordNeedsUpdate =
+                (bool) $student->parent_default_password;
+        } elseif (
             Schema::hasColumn(
                 'students',
                 'default_password'
@@ -1074,6 +1294,35 @@ class BachilleresController extends Controller
                 );
         }
 
+        $recentAttendance =
+            DB::table('attendances')
+                ->where(
+                    'student_code',
+                    $student->student_code
+                )
+                ->orderByDesc('attendance_date')
+                ->orderByDesc('attendance_time')
+                ->limit(10)
+                ->get([
+                    'attendance_date',
+                    'attendance_time',
+                    'source',
+                ]);
+
+        $recentAttendance = $recentAttendance->map(function ($row) use ($student) {
+            $row->attendance_status = $this->attendanceStatus(
+                (string) $student->classroom,
+                (string) $row->attendance_time,
+                (string) $row->attendance_date
+            );
+
+            return $row;
+        });
+
+        $isAtRisk =
+            $this->studentsAtRisk()
+                ->contains('id', $student->id);
+
         return view(
             'student.dashboard',
             array_merge(
@@ -1083,6 +1332,14 @@ class BachilleresController extends Controller
                     'success' => $success,
                     'passwordNeedsUpdate' =>
                         $passwordNeedsUpdate,
+
+                    'recentAttendance' =>
+                        $recentAttendance,
+
+                    'isAtRisk' =>
+                        $isAtRisk,
+                    'isParent' =>
+                        session('role') === 'parent',
                 ],
                 $this->qrData(
                     $student->student_code
@@ -1141,6 +1398,8 @@ class BachilleresController extends Controller
         $attendanceCount =
             DB::table('attendances')
                 ->count();
+
+        $riskStudents = $this->studentsAtRisk();
 
         $recentStudents =
             Student::orderByDesc('id')
@@ -1293,6 +1552,7 @@ class BachilleresController extends Controller
             compact(
                 'studentCount',
                 'attendanceCount',
+                'riskStudents',
                 'recentStudents',
                 'resetError',
                 'resetSuccess'
@@ -1326,14 +1586,19 @@ class BachilleresController extends Controller
 
         if ($search !== '') {
             $studentsQuery
-                ->whereRaw(
-                    'UPPER(account_number) LIKE ?',
-                    [
-                        '%' .
-                        strtoupper($search) .
-                        '%'
-                    ]
-                );
+                ->where(function ($query) use ($search) {
+                    $value = '%' . strtoupper($search) . '%';
+
+                    $query
+                        ->whereRaw(
+                            'UPPER(account_number) LIKE ?',
+                            [$value]
+                        )
+                        ->orWhereRaw(
+                            'UPPER(full_name) LIKE ?',
+                            [$value]
+                        );
+                });
         }
 
         $students =
@@ -1784,6 +2049,22 @@ class BachilleresController extends Controller
                 ] = true;
             }
 
+            if (
+                Schema::hasColumn(
+                    'students',
+                    'parent_password_hash'
+                )
+            ) {
+                $studentData['parent_password_hash'] =
+                    Hash::make(
+                        (string) env(
+                            'PARENT_DEFAULT_PASSWORD',
+                            'Padres05'
+                        )
+                    );
+                $studentData['parent_default_password'] = true;
+            }
+
             $student =
                 Student::create(
                     $studentData
@@ -2042,6 +2323,23 @@ class BachilleresController extends Controller
 
                     $student->account_number =
                         $account;
+
+                    if (
+                        Schema::hasColumn(
+                            'students',
+                            'parent_password_hash'
+                        ) &&
+                        empty($student->parent_password_hash)
+                    ) {
+                        $student->parent_password_hash =
+                            Hash::make(
+                                (string) env(
+                                    'PARENT_DEFAULT_PASSWORD',
+                                    'Padres05'
+                                )
+                            );
+                        $student->parent_default_password = true;
+                    }
                 }
 
                 $student->save();
@@ -2076,6 +2374,16 @@ class BachilleresController extends Controller
                     'attendance_time',
                     'source',
                 ]);
+
+        $recentAttendance = $recentAttendance->map(function ($row) use ($student) {
+            $row->attendance_status = $this->attendanceStatus(
+                (string) $student->classroom,
+                (string) $row->attendance_time,
+                (string) $row->attendance_date
+            );
+
+            return $row;
+        });
 
         return view(
             'student.details',
@@ -2179,7 +2487,9 @@ class BachilleresController extends Controller
             $request
         );
 
-        return view('scan');
+        return view('scan', [
+            'riskStudents' => $this->studentsAtRisk(),
+        ]);
     }
 
     /*
@@ -2276,6 +2586,11 @@ class BachilleresController extends Controller
                 'classroom' => $student->classroom,
                 'date' => $today,
                 'time' => $existing?->attendance_time,
+                'attendance_status' => $this->attendanceStatus(
+                    (string) $student->classroom,
+                    (string) ($existing?->attendance_time ?? $nowTime),
+                    $today
+                ),
             ], 409);
         }
 
@@ -2310,6 +2625,11 @@ class BachilleresController extends Controller
                 'classroom' => $student->classroom,
                 'time' => $checkedAt->format('H:i:s'),
                 'date' => $checkedAt->toDateString(),
+                'attendance_status' => $this->attendanceStatus(
+                    (string) $student->classroom,
+                    $checkedAt->format('H:i:s'),
+                    $today
+                ),
             ]);
         } catch (\Throwable $e) {
             Log::error('Error registrando asistencia', [
@@ -2367,8 +2687,14 @@ class BachilleresController extends Controller
                 ->orderBy(
                     's.classroom'
                 )
+                ->orderByRaw(
+                    'LOWER(TRIM(s.full_name))'
+                )
                 ->orderBy(
-                    's.full_name'
+                    's.student_code'
+                )
+                ->orderBy(
+                    'a.attendance_time'
                 )
                 ->get([
                     's.full_name',
@@ -2384,6 +2710,12 @@ class BachilleresController extends Controller
         $currentRecords = [];
 
         foreach ($rows as $row) {
+            $row->attendance_status = $this->attendanceStatus(
+                (string) $row->classroom,
+                (string) $row->attendance_time,
+                (string) $row->attendance_date
+            );
+
             [
                 $sectionGroup,
                 $sectionShift
@@ -2447,6 +2779,9 @@ class BachilleresController extends Controller
             [
                 'attendanceSections' =>
                     $attendanceSections,
+
+                'riskStudents' =>
+                    $this->studentsAtRisk(),
 
                 'selectedDate' =>
                     $selectedDate,

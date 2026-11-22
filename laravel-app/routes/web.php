@@ -15,6 +15,7 @@ Route::post('/scanner/login', [BachilleresController::class, 'menu']);
 
 Route::get('/admin/logout', [BachilleresController::class, 'adminLogout'])->name('admin.logout');
 Route::get('/student/logout', [BachilleresController::class, 'studentLogout'])->name('student.logout');
+Route::get('/parent/logout', [BachilleresController::class, 'parentLogout'])->name('parent.logout');
 Route::get('/scanner/logout', [BachilleresController::class, 'scannerLogout'])->name('scanner.logout');
 
 Route::match(['get', 'post'], '/student/register', [BachilleresController::class, 'studentRegister'])->name('student.register');

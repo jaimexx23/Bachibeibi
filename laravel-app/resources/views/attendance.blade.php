@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
+@include('partials.risk-alert')
+
 <section class="card">
   <div class="card-head">
     <div>
@@ -26,6 +28,7 @@
               <th>Nombre</th>
               <th>Grupo</th>
               <th>Origen</th>
+              <th>Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -36,6 +39,13 @@
                 <td>{{ $row->full_name }}</td>
                 <td>{{ $row->classroom }}</td>
                 <td>{{ $row->source }}</td>
+                <td>
+                  @if($row->attendance_status['is_late'])
+                    <strong style="color:#a31515;">RETARDO</strong>
+                  @else
+                    <strong style="color:#2f6b2f;">PUNTUAL</strong>
+                  @endif
+                </td>
               </tr>
             @endforeach
           </tbody>

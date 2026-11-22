@@ -88,6 +88,26 @@
               Salir
             </a>
 
+          {{-- PADRE / MADRE / TUTOR --}}
+          @elseif(
+            session('role') === 'parent'
+            && session()->has('student_id')
+          )
+
+            <a
+              class="nav-link {{ request()->routeIs('student.dashboard') ? 'active' : '' }}"
+              href="{{ route('student.dashboard') }}"
+            >
+              Panel del alumno
+            </a>
+
+            <a
+              class="nav-link"
+              href="{{ route('parent.logout') }}"
+            >
+              Salir
+            </a>
+
 
           {{-- ADMIN --}}
           @elseif(
@@ -149,6 +169,26 @@
       @yield('content')
     </main>
 
+  </div>
+
+  <div class="creator-watermark">
+    <a
+      class="help-link"
+      href="https://www.instagram.com/jaime_rsj"
+      target="_blank"
+      rel="noreferrer"
+    >
+      ¿Necesitas ayuda? Escríbenos aquí
+    </a>
+    <a
+      class="creator-instagram"
+      href="https://www.instagram.com/jaime_rsj"
+      target="_blank"
+      rel="noreferrer"
+      aria-label="Instagram del creador: jaime_rsj"
+    >
+      Instagram · @jaime_rsj
+    </a>
   </div>
 
   <script

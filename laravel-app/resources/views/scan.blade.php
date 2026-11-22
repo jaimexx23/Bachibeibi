@@ -1566,6 +1566,8 @@
 </style>
 
 
+@include('partials.risk-alert')
+
 <div class="scanner-page">
 
     {{-- ============================================================= --}}

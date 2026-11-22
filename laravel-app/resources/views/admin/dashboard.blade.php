@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
+@include('partials.risk-alert')
+
 <section class="grid grid-3">
   <article class="card stat-card">
     <p class="hero-eyebrow">Resumen</p>
