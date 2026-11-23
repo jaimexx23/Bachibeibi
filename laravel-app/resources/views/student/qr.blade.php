@@ -7,11 +7,23 @@
     <h2 class="card-title">{{ $student->full_name }}</h2>
     <p class="card-subtitle">Código: {{ $student->student_code }} | Grupo: {{ $student->classroom }}</p>
 
+    @if($activeSuspension)
+      <div class="notice notice-error">
+        <strong>Acceso denegado.</strong>
+        El alumno se encuentra suspendido del {{ $activeSuspension->starts_at }} al {{ $activeSuspension->ends_at }}.
+        @if($activeSuspension->reason)
+          <br>Motivo: {{ $activeSuspension->reason }}
+        @endif
+      </div>
+    @endif
+
+    @if(!$activeSuspension)
     <div class="qr-box">
       {!! $qrSvg !!}
     </div>
 
     <p class="qr-url"><a href="{{ $qrPayload }}" target="_blank" rel="noreferrer">{{ $qrPayload }}</a></p>
+    @endif
   </article>
 
   <article class="card accent-card">

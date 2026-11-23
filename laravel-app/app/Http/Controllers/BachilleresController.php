@@ -398,6 +398,22 @@ class BachilleresController extends Controller
         ];
     }
 
+    private function activeSuspension(int $studentId)
+    {
+        if (!Schema::hasTable('student_suspensions')) {
+            return null;
+        }
+
+        $today = now()->toDateString();
+
+        return DB::table('student_suspensions')
+            ->where('student_id', $studentId)
+            ->where('starts_at', '<=', $today)
+            ->where('ends_at', '>=', $today)
+            ->orderByDesc('starts_at')
+            ->first();
+    }
+
     /*
     |--------------------------------------------------------------------------
     | CONSULTA LOGIN ALUMNO
@@ -2132,11 +2148,14 @@ class BachilleresController extends Controller
             return $access;
         }
 
+        $activeSuspension = $this->activeSuspension($student->id);
+
         return view(
             'student.qr',
             array_merge(
                 [
                     'student' => $student,
+                    'activeSuspension' => $activeSuspension,
                 ],
                 $this->qrData(
                     $student->student_code
@@ -2165,10 +2184,45 @@ class BachilleresController extends Controller
         $success = null;
 
         if ($request->isMethod('post')) {
+            if (
+                $request->input('suspension_action') === 'apply' &&
+                Schema::hasTable('student_suspensions')
+            ) {
+                $data = $request->validate([
+                    'suspension_starts_at' => ['required', 'date'],
+                    'suspension_ends_at' => ['required', 'date', 'after_or_equal:suspension_starts_at'],
+                    'suspension_reason' => ['nullable', 'string', 'max:500'],
+                ]);
+
+                DB::table('student_suspensions')->insert([
+                    'student_id' => $student->id,
+                    'starts_at' => $data['suspension_starts_at'],
+                    'ends_at' => $data['suspension_ends_at'],
+                    'reason' => trim((string) ($data['suspension_reason'] ?? '')),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $success = 'Suspensión registrada correctamente.';
+
             /*
              * FOTO
              */
-            if ($request->hasFile('photo')) {
+            } elseif (
+                $request->input('suspension_action') === 'lift' &&
+                Schema::hasTable('student_suspensions')
+            ) {
+                DB::table('student_suspensions')
+                    ->where('student_id', $student->id)
+                    ->where('ends_at', '>=', now()->toDateString())
+                    ->delete();
+
+                $success = 'Suspensión levantada correctamente.';
+
+            /*
+             * FOTO
+             */
+            } elseif ($request->hasFile('photo')) {
                 $request->validate([
                     'photo' => [
                         'required',
@@ -2385,6 +2439,15 @@ class BachilleresController extends Controller
             return $row;
         });
 
+        $activeSuspension = $this->activeSuspension($student->id);
+        $suspensionHistory = Schema::hasTable('student_suspensions')
+            ? DB::table('student_suspensions')
+                ->where('student_id', $student->id)
+                ->orderByDesc('starts_at')
+                ->limit(10)
+                ->get()
+            : collect();
+
         return view(
             'student.details',
             array_merge(
@@ -2403,6 +2466,12 @@ class BachilleresController extends Controller
 
                     'success' =>
                         $success,
+
+                    'activeSuspension' =>
+                        $activeSuspension,
+
+                    'suspensionHistory' =>
+                        $suspensionHistory,
                 ],
                 $this->qrData(
                     $student->student_code
@@ -2455,11 +2524,14 @@ class BachilleresController extends Controller
             );
         }
 
+        $activeSuspension = $this->activeSuspension($student->id);
+
         return view(
             'student.qr',
             array_merge(
                 [
                     'student' => $student,
+                    'activeSuspension' => $activeSuspension,
                 ],
                 $this->qrData(
                     $student->student_code
@@ -2490,6 +2562,107 @@ class BachilleresController extends Controller
         return view('scan', [
             'riskStudents' => $this->studentsAtRisk(),
         ]);
+    }
+
+    public function suspensions(Request $request)
+    {
+        $access = $this->requireAdminOrScanner();
+
+        if ($access) {
+            return $access;
+        }
+
+        $this->touchActiveSession($request);
+
+        $error = null;
+        $success = null;
+
+        if ($request->isMethod('post')) {
+            $action = (string) $request->input('action', '');
+            $studentId = (int) $request->input('student_id', 0);
+
+            if ($action === 'apply' && $studentId > 0) {
+                $data = $request->validate([
+                    'starts_at' => ['required', 'date'],
+                    'ends_at' => ['required', 'date', 'after_or_equal:starts_at'],
+                    'reason' => ['nullable', 'string', 'max:500'],
+                ]);
+
+                $student = Student::find($studentId);
+
+                if (!$student) {
+                    $error = 'Alumno no encontrado.';
+                } else {
+                    DB::table('student_suspensions')->insert([
+                        'student_id' => $student->id,
+                        'starts_at' => $data['starts_at'],
+                        'ends_at' => $data['ends_at'],
+                        'reason' => trim((string) ($data['reason'] ?? '')),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    $success = 'Suspensión aplicada a ' . $student->full_name . '.';
+                }
+            } elseif ($action === 'lift' && $studentId > 0) {
+                DB::table('student_suspensions')
+                    ->where('student_id', $studentId)
+                    ->where('ends_at', '>=', now()->toDateString())
+                    ->delete();
+
+                $success = 'Suspensión levantada correctamente.';
+            }
+        }
+
+        $search = trim((string) $request->query('search', ''));
+        $studentsQuery = Student::query();
+
+        if ($search !== '') {
+            $normalizedSearch = '%' . strtoupper($search) . '%';
+
+            $studentsQuery->where(function ($query) use ($normalizedSearch) {
+                $query
+                    ->whereRaw('UPPER(full_name) LIKE ?', [$normalizedSearch])
+                    ->orWhereRaw('UPPER(student_code) LIKE ?', [$normalizedSearch])
+                    ->orWhereRaw('UPPER(account_number) LIKE ?', [$normalizedSearch]);
+            });
+        }
+
+        $today = now()->toDateString();
+        $students = $studentsQuery
+            ->orderBy('full_name')
+            ->limit(50)
+            ->get()
+            ->map(function ($student) use ($today) {
+                $student->active_suspension = DB::table('student_suspensions')
+                    ->where('student_id', $student->id)
+                    ->where('starts_at', '<=', $today)
+                    ->where('ends_at', '>=', $today)
+                    ->orderByDesc('starts_at')
+                    ->first();
+
+                return $student;
+            });
+
+        $activeSuspensions = DB::table('student_suspensions')
+            ->join('students', 'students.id', '=', 'student_suspensions.student_id')
+            ->where('starts_at', '<=', $today)
+            ->where('ends_at', '>=', $today)
+            ->orderBy('students.full_name')
+            ->get([
+                'student_suspensions.*',
+                'students.full_name',
+                'students.student_code',
+                'students.classroom',
+            ]);
+
+        return view('suspensions', compact(
+            'search',
+            'students',
+            'activeSuspensions',
+            'error',
+            'success'
+        ));
     }
 
     /*
@@ -2562,6 +2735,26 @@ class BachilleresController extends Controller
                 'ok' => false,
                 'message' => 'Alumno no registrado.',
             ], 404);
+        }
+
+        $activeSuspension = $this->activeSuspension($student->id);
+
+        if ($activeSuspension) {
+            $suspensionMessage = 'Acceso denegado. El alumno se encuentra suspendido.';
+
+            if ($activeSuspension->reason) {
+                $suspensionMessage .= ' Motivo: ' . $activeSuspension->reason;
+            }
+
+            return response()->json([
+                'ok' => false,
+                'message' => $suspensionMessage,
+                'student' => $student->full_name,
+                'classroom' => $student->classroom,
+                'suspended' => true,
+                'suspension_start' => $activeSuspension->starts_at,
+                'suspension_end' => $activeSuspension->ends_at,
+            ], 403);
         }
 
         $today = now()->toDateString();

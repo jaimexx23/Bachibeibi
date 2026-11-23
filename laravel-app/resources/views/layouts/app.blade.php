@@ -61,6 +61,13 @@
             </a>
 
             <a
+              class="nav-link {{ request()->routeIs('suspensions') ? 'active' : '' }}"
+              href="{{ route('suspensions') }}"
+            >
+              Suspensiones
+            </a>
+
+            <a
               class="nav-link"
               href="{{ route('scanner.logout') }}"
             >

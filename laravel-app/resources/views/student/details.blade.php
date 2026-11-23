@@ -50,6 +50,61 @@
       <button class="btn" type="submit">Guardar cambios</button>
     </form>
 
+    <h3 class="card-title" style="margin-top: 1.5rem;">Suspensión</h3>
+
+    @if($activeSuspension)
+      <div class="notice notice-error">
+        Suspensión activa del {{ $activeSuspension->starts_at }} al {{ $activeSuspension->ends_at }}.
+        @if($activeSuspension->reason)
+          <br>Motivo: {{ $activeSuspension->reason }}
+        @endif
+      </div>
+
+      <form method="post" action="{{ route('students.details', $student) }}" class="form">
+        @csrf
+        <input type="hidden" name="suspension_action" value="lift">
+        <button class="btn btn-secondary" type="submit">Levantar suspensión</button>
+      </form>
+    @else
+      <p class="card-subtitle">El alumno no tiene una suspensión activa.</p>
+    @endif
+
+    <form method="post" action="{{ route('students.details', $student) }}" class="form" style="margin-top: 1rem;">
+      @csrf
+      <input type="hidden" name="suspension_action" value="apply">
+      <div class="form-grid">
+        <label class="field">
+          <span>Inicio</span>
+          <input class="input" type="date" name="suspension_starts_at" value="{{ old('suspension_starts_at', now()->toDateString()) }}" required>
+        </label>
+        <label class="field">
+          <span>Fin</span>
+          <input class="input" type="date" name="suspension_ends_at" value="{{ old('suspension_ends_at', now()->toDateString()) }}" required>
+        </label>
+      </div>
+      <label class="field">
+        <span>Motivo</span>
+        <textarea class="input" name="suspension_reason" rows="3">{{ old('suspension_reason') }}</textarea>
+      </label>
+      <button class="btn" type="submit">Aplicar suspensión</button>
+    </form>
+
+    @if($suspensionHistory->isNotEmpty())
+      <h4 class="card-title" style="margin-top: 1.5rem;">Historial de suspensiones</h4>
+      <div class="list">
+        @foreach($suspensionHistory as $suspension)
+          <div class="list-item">
+            <div>
+              <strong>{{ $suspension->starts_at }} al {{ $suspension->ends_at }}</strong>
+              @if($suspension->reason)
+                <div class="muted">{{ $suspension->reason }}</div>
+              @endif
+            </div>
+          </div>
+        @endforeach
+      </div>
+    @endif
+
     @php
       $studentPhotoFilename = $student->photo_filename;
       $photoInStoragePath = $studentPhotoFilename ? storage_path('app/public/students/' . $studentPhotoFilename) : null;
